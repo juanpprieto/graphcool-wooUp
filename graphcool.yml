@@ -1,0 +1,156 @@
+types: ./types.graphql
+functions:
+# added by email-password template: (please uncomment)
+
+ storeHasOrder:
+    type: resolver
+    schema: src/custom-functions/storeHasOrder.graphql
+    handler:
+      code: src/custom-functions/storeHasOrder.ts
+
+ ordersByPeriod:
+   type: resolver
+   schema: src/custom-functions/ordersByPeriod.graphql
+   handler:
+     code: src/custom-functions/ordersByPeriod.ts
+
+ totalsByPeriod:
+   type: resolver
+   schema: src/custom-functions/totalsByPeriod.graphql
+   handler:
+     code: src/custom-functions/totalsByPeriod.ts
+
+ signup:
+   type: resolver
+   schema: src/email-password/signup.graphql
+   handler:
+     code: src/email-password/signup.ts
+
+ authenticate:
+   type: resolver
+   schema: src/email-password/authenticate.graphql
+   handler:
+     code: src/email-password/authenticate.ts
+
+ loggedInUser:
+   type: resolver
+   schema: src/email-password/loggedInUser.graphql
+   handler:
+     code: src/email-password/loggedInUser.ts
+
+permissions:
+- operation: AccessGroup.read
+- operation: AccessGroup.create
+- operation: AccessGroup.update
+- operation: AccessGroup.delete
+- operation: Billing.read
+- operation: Billing.create
+- operation: Billing.update
+- operation: Billing.delete
+- operation: File.read
+- operation: File.create
+- operation: File.update
+- operation: File.delete
+- operation: Order.create
+- operation: Order.update
+- operation: Order.delete
+- operation: Order.read
+  authenticated: true
+  query: ./src/permissions/Order.graphql:readOrders
+  fields:
+  - id
+  - createdAt
+  - updatedAt
+  - orderId
+  - parentId
+  - orderKey
+  - createdVia
+  - version
+  - status
+  - currency
+  - dateCreated
+  - dateCreatedGmt
+  - dateModified
+  - dateModifiedGmt
+  - discountTotal
+  - discountTax
+  - shippingTotal
+  - shippingTax
+  - total
+  - totalTax
+  - pricesIncludeTax
+  - customerId
+  - customerUserAgent
+  - customerNote
+  - store
+  - shipping
+  - paymentMethod
+  - paymentMethodTitle
+  - transactionId
+  - datePaid
+  - datePaidGmt
+  - dateCompleted
+  - dateCompletedGmt
+  - cartHash
+  - sku
+  - cartTax
+  - customerIpAddress
+  - billing
+  - items
+  - accessGroups
+- operation: OrderItem.read
+- operation: OrderItem.create
+- operation: OrderItem.update
+- operation: OrderItem.delete
+- operation: OrderItemMeta.read
+- operation: OrderItemMeta.create
+- operation: OrderItemMeta.update
+- operation: OrderItemMeta.delete
+- operation: OrderItemTax.read
+- operation: OrderItemTax.create
+- operation: OrderItemTax.update
+- operation: OrderItemTax.delete
+- operation: OrderMeta.read
+- operation: OrderMeta.create
+- operation: OrderMeta.update
+- operation: OrderMeta.delete
+- operation: OrderTaxLine.read
+- operation: OrderTaxLine.create
+- operation: OrderTaxLine.update
+- operation: OrderTaxLine.delete
+- operation: Shipping.read
+- operation: Shipping.create
+- operation: Shipping.update
+- operation: Shipping.delete
+- operation: User.read
+  authenticated: true
+  query: ./src/permissions/User.graphql:read
+  fields:
+  - createdAt
+  - updatedAt
+  - name
+  - wooupCk
+  - wooupCs
+  - wooupStartDate
+  - wooupVersion
+  - wooupSubId
+  - wooupOrderId
+  - wooupUrl
+  - wooupEmail
+  - wooupProduct
+  - wooupKey
+  - orders
+  - wooupActive
+  - accessGroups
+  - email
+  - id
+- operation: AccessGroupOrders.*
+- operation: AccessGroupStores.*
+- operation: OrderItemOnOrderItemMeta.*
+- operation: OrderItemOnOrderItemTax.*
+- operation: OrderOnBilling.*
+- operation: OrderOnOrderItem.*
+- operation: OrderOnShipping.*
+- operation: UserOnOrder.*
+rootTokens:
+  - rootToken1

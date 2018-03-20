@@ -1,0 +1,191 @@
+type AccessGroup @model {
+  id: ID! @isUnique
+  operation: AccessGroupOperation!
+  orders: [Order!]! @relation(name: "AccessGroupOrders")
+  stores: [User!]! @relation(name: "AccessGroupStores")
+}
+
+enum AccessGroupOperation {
+  READ
+  UPDATE
+  DELETE
+}
+
+type Billing @model {
+  address1: String
+  address2: String
+  city: String
+  company: String
+  country: String
+  createdAt: DateTime!
+  email: String
+  firstName: String
+  id: ID! @isUnique
+  lastName: String
+  order: Order @relation(name: "OrderOnBilling")
+  phone: String
+  postcode: String
+  state: String
+  updatedAt: DateTime!
+}
+
+type File @model {
+  contentType: String!
+  createdAt: DateTime!
+  id: ID! @isUnique
+  name: String!
+  secret: String! @isUnique
+  size: Int!
+  updatedAt: DateTime!
+  url: String! @isUnique
+}
+
+type Order @model {
+  accessGroups: [AccessGroup!]! @relation(name: "AccessGroupOrders")
+  billing: Billing @relation(name: "OrderOnBilling")
+  cartHash: String
+  cartTax: Int
+  createdAt: DateTime!
+  createdVia: String
+  currency: String
+  customerId: Int
+  customerIpAddress: String
+  customerNote: String
+  customerUserAgent: String
+  dateCompleted: DateTime
+  dateCompletedGmt: DateTime
+  dateCreated: DateTime
+  dateCreatedGmt: DateTime
+  dateModified: DateTime
+  dateModifiedGmt: DateTime
+  datePaid: DateTime
+  datePaidGmt: DateTime
+  discountTax: Int
+  discountTotal: Int
+  id: ID! @isUnique
+  items: [OrderItem!]! @relation(name: "OrderOnOrderItem")
+  orderId: Int
+  orderKey: String
+  parentId: Int
+  paymentMethod: String
+  paymentMethodTitle: String
+  pricesIncludeTax: Boolean
+  shipping: Shipping @relation(name: "OrderOnShipping")
+  shippingTax: Int
+  shippingTotal: Int
+  sku: String
+  status: String
+  store: User @relation(name: "UserOnOrder")
+  total: Int
+  totalTax: Int
+  transactionId: Int
+  updatedAt: DateTime!
+  version: String
+}
+
+type OrderItem @model {
+  createdAt: DateTime!
+  id: ID! @isUnique
+  itemId: Int!
+  items: Order! @relation(name: "OrderOnOrderItem")
+  metaData: [OrderItemMeta!]! @relation(name: "OrderItemOnOrderItemMeta")
+  name: String!
+  price: Int!
+  productId: Int!
+  quantity: Int!
+  sku: String!
+  subtotal: Int!
+  subtotalTax: Int!
+  taxClass: String!
+  taxes: [OrderItemTax!]! @relation(name: "OrderItemOnOrderItemTax")
+  total: Int!
+  totalTax: Int!
+  updatedAt: DateTime!
+  variationId: Int!
+}
+
+type OrderItemMeta @model {
+  createdAt: DateTime!
+  id: ID! @isUnique
+  item: OrderItem! @relation(name: "OrderItemOnOrderItemMeta")
+  key: String!
+  metaId: Int!
+  updatedAt: DateTime!
+  value: String!
+}
+
+type OrderItemTax @model {
+  createdAt: DateTime!
+  id: ID! @isUnique
+  item: OrderItem! @relation(name: "OrderItemOnOrderItemTax")
+  key: String!
+  metaId: Int!
+  updatedAt: DateTime!
+  value: String!
+}
+
+type OrderMeta @model {
+  createdAt: DateTime!
+  id: ID! @isUnique
+  key: String!
+  orderMetaId: Int!
+  updatedAt: DateTime!
+  value: String!
+}
+
+type OrderTaxLine @model {
+  compound: Boolean!
+  createdAt: DateTime!
+  id: ID! @isUnique
+  label: String
+  metaData: Json
+  rateCode: String
+  shippingTaxTotal: String
+  taxTotal: String
+  taxlineId: Int!
+  updatedAt: DateTime!
+}
+
+type Shipping @model {
+  address1: String
+  address2: String
+  city: String
+  company: String
+  country: String
+  createdAt: DateTime!
+  firstName: String
+  id: ID! @isUnique
+  lastName: String
+  order: Order! @relation(name: "OrderOnShipping")
+  postcode: String
+  state: String
+  updatedAt: DateTime!
+}
+
+type User @model {
+  accessGroups: [AccessGroup!]! @relation(name: "AccessGroupStores")
+  createdAt: DateTime!
+  email: String @isUnique
+  id: ID! @isUnique
+  name: String! @migrationValue(value: "John Doe")
+  orders: [Order!]! @relation(name: "UserOnOrder")
+  password: String
+  updatedAt: DateTime!
+  wooupActive: Boolean
+  wooupCk: String
+  wooupCs: String
+  wooupEmail: String
+  wooupKey: String
+  wooupOrderId: String
+  wooupProduct: String
+  wooupStartDate: String
+  wooupSubId: String
+  wooupUrl: String
+  wooupVersion: String
+}
+
+enum UserRole {
+  EDITOR
+  MODERATOR
+  ADMIN
+}

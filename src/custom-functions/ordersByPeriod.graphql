@@ -1,0 +1,11 @@
+type ordersByPeriodPayload {
+  store_id: String
+  periodOrders: Json
+  periodHours: Int
+  periodCount: Int
+  periodTotal: Int
+}
+
+extend type Query {
+  ordersByPeriod( t1: DateTime, t2: DateTime, dateProp: String, splitBy: String, showItems: Boolean): ordersByPeriodPayload
+}

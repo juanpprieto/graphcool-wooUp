@@ -1,0 +1,10 @@
+query readOrders($node_id: ID! $user_id: ID!) {
+  SomeOrderExists(
+    filter: {
+      id: $node_id
+      store: {
+        id: $user_id
+      }
+    }
+  )
+}

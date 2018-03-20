@@ -1,0 +1,9 @@
+type orderStoredPayload {
+    isStored: Boolean!
+    orderId: Int!
+    id: ID
+}
+
+extend type Query {
+    storeHasOrder(sId: String! oid: Int!): orderStoredPayload
+}

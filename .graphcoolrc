@@ -1,0 +1,5 @@
+targets:
+  dev: local/cjenkkclp00040126z6eadb1k
+  prod: shared-us-west-2/cjengiy380aud016375g870ps
+  live: shared-us-west-2/cjeoqlmvi4ert0147u1u8pdmd
+  default: live
