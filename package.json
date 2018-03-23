@@ -8,6 +8,8 @@
     "bcryptjs": "^2.4.3",
     "graphcool-lib": "^0.1.0",
     "graphql-request": "^1.4.0",
+    "moment": "^2.21.0",
+    "unzip": "^0.1.11",
     "validator": "^9.0.0"
   }
 }

@@ -236,9 +236,6 @@ export default async (event: FunctionEvent<EventData>) => {
         let d1 = new Date(t1), // 10:09 to
             d2 = new Date(t2); // 10:20
 
-        let diff = d2 - d1;
-
-
         // default response
         let response = {
             message: '',

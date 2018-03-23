@@ -1,5 +1,7 @@
 
 import { fromEvent, FunctionEvent } from 'graphcool-lib'
+import * as moment from 'moment';
+
 
 interface Date {
     getWeek(d: Date): string;
@@ -17,37 +19,78 @@ Date.prototype.getWeek = function (d) {
     // Return array of year and week number
     return Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
 };
+let weekAndDays = function (orderDateString) {
+    //console.log('orderDateString',orderDateString);
+    let orderDate = moment(orderDateString);
+    //console.log('orderDate',orderDate);
+    let orderYear = orderDate.format('YYYY');
+    let orderDay = orderDate.format('DD');
+    //console.log('orderDay',orderDay);
+    let orderWeek = orderDate.format('ww');
+    let orderYearWeek = orderYear + '-' + orderWeek; // 2018-51
+    //console.log('orderYearWeek', orderYearWeek);
+    let orderWeekDays = [];
+    for (var day = 0; day < 7; day++){
+        orderWeekDays.push(orderDate.startOf('week').add(day, 'days').format('DD').substring(0, 2));
+    }
+    // console.log('orderWeekDays',orderWeekDays);
+    let orderWeekday = orderWeekDays.indexOf(orderDay); // '0-7' based on days of this week i.e 19-25;
+    //console.log({split: orderSplit, subSplit: orderSubSplit });
+    if(orderWeekday > 6) {
+        // shouldnt get here but it means it couldnt match the day to the current week
+        orderWeekday = 7; //set order weekday it as a 8th day of the week..
+    }
+    return {split: orderYearWeek, subSplit: orderWeekday }; // 2018-51 > 0..7 , 2017-52> 0...7
+}
 
-
-async function groupTotalsByPeriod(obj, timestamp, period) {
+async function groupTotalsByPeriod(rawOrders: any, timestamp: string, period: string, showItems: boolean) {
     return new Promise(function(resolve, reject){
-        // console.log('obj',obj);
+        // console.log('rawOrders',rawOrders);
         // console.log('timestamp',timestamp);
         // console.log('period',period);
-        let objPeriod = {};
+        // if ( debug ) console.log('showItems............. : ', showItems);
+        // let objPeriod = {};
+        var periods = {
+            count: 0, splits: []
+        };
+        var periodOrders = {};
+        var periodCounts = {};
+        var periodSalesTotals = {};
 
         // Loop and sort orders by period + date
-        for (let i = 0; i < obj.length; i++) {
+        for (var i = 0; i < rawOrders.length; i++) {
 
-            obj[i].date = Date.parse(obj[i][timestamp]);
-            let curDate = new Date(obj[i]["dateCompleted"]);
-            let split;
-            let subSplit = 0;
+
+            rawOrders[i].date = Date.parse(rawOrders[i][timestamp]);
+            var curDate = new Date(rawOrders[i].dateCompleted);
+            var split;
+            //console.log('dateCompleted', rawOrders[i].dateCompleted)
+            var subSplit = 0;
 
             if( period == 'hours'){
                 subSplit = ( curDate.getUTCHours() - 1 === -1 ) ? 0 : curDate.getUTCHours() - 1;
-                //console.log('curDate.getUTCHours()', curDate.getUTCHours());
+                // console.log('curDate.getUTCHours()', curDate.getUTCHours());
                 split = curDate.getFullYear()+'-' + ("0" + (curDate.getMonth() + 1)).slice(-2) + '-'+curDate.getDate();
+
             } else if (period == 'days') {
                 subSplit = curDate.getUTCDate() - 1;
                 split = curDate.getFullYear()+'-' + ("0" + (curDate.getMonth() + 1)).slice(-2);
 
-            } else if (period == 'weeks') {
+            } else if (period == 'weeksYear') {
                 subSplit = curDate.getWeek(curDate);
                 split = curDate.getFullYear();
 
+            } else if (period == 'weeksDays') {
+                // Using momentjs based formula
+                let orderSplits = weekAndDays(rawOrders[i].dateCompleted);
+                split = orderSplits.split;
+                subSplit = orderSplits.subSplit;
+
             } else if (period == 'months') {
-                subSplit = ("0" + (curDate.getMonth() + 1)).slice(-2);
+
+                subSplit = curDate.getMonth();
+                //console.log(subSplit)
+                // console.log(subSplit)
                 split = curDate.getFullYear();
 
             } else if (period == 'quarters') {
@@ -57,114 +100,202 @@ async function groupTotalsByPeriod(obj, timestamp, period) {
             } else if (period == 'years') {
                 split = curDate.getFullYear();
             } else {
-             //   console.log('groupByTimePeriod: You have to set a period! hour | day | week | month | year');
+                // console.log('groupByTimePeriod: You have to set a period! hours | days | weeks | month | year');
             }
 
+            // Store periods
+            if(periods.splits.indexOf(split) === -1 ) {
+                // add split if not already added
+                periods.splits.push(split);
+            }
+
+
             // delete epoch date
-            delete obj[i].date;
+            delete rawOrders[i].date;
 
             // Convert to string
             subSplit = '' + subSplit;
 
             // init split array
-            if(!objPeriod[split]){
-                objPeriod[split] = [];
+            if ( !periodOrders[split] ) {
+
+                periodOrders[split] = [];
+
+                periodCounts[split] = {
+                    change: 0.00,
+                    change_value: 0.00,
+                    total: 0
+                };
+
+                periodSalesTotals[split] = {
+                    change: 0.00,
+                    change_value: 0.00,
+                    total: 0
+                };
             }
 
-            if(period == 'hours' && objPeriod[split]){
-                if(objPeriod[split].length !== 24){
-                    for (let x = 0; x < 24; x++ ){
-                        if(!objPeriod[split][x]){
+
+            if(period == 'hours' && periodOrders[split]){
+                if(periodOrders[split].length !== 24){
+                    for (var x = 0; x < 24; x++ ){
+                        if(!periodOrders[split][x]){
                             //only add hour object if not already added.
-                            objPeriod[split][x] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0}
+                            periodOrders[split][x] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0, list:[]};
                         }
                     }
                 }
             }
 
-            if(period == 'days' && objPeriod[split]){
-                let localSplit = new Date(obj[i]["dateCompleted"]);
-                let month = localSplit.getMonth() + 1;
-                let year = localSplit.getFullYear();
+            if(period == 'days' && periodOrders[split]){
+                var localsplit = new Date(rawOrders[i].dateCompleted);
+                var month = localsplit.getMonth() + 1;
+                var year = localsplit.getFullYear();
 
-                let daysMonth = new Date(year, month, 0).getUTCDate();
+                var daysMonth = new Date(year, month, 0).getUTCDate();
                 // console.log(year, month, daysMonth)
-                if(objPeriod[split].length !== daysMonth){
-                    for (let z = 0; z < daysMonth; z++ ){
-                        if(!objPeriod[split][z]){
+                if(periodOrders[split].length !== daysMonth){
+                    for (var x = 0; x < daysMonth; x++ ){
+                        if(!periodOrders[split][x]){
                             //only add day object if not already added.
-                            objPeriod[split][z] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0};
+                            periodOrders[split][x] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0, list:[]};
                         }
+
                     }
                 }
+
             }
 
-            if(period == 'weeks' && objPeriod[split]){
-                let weeksInY = getISOWeeks(curDate.getFullYear());
+            if(period == 'weeksYear' && periodOrders[split]){
+                var weeksInY = getISOWeeks(curDate.getFullYear());
                 // console.log('weeksInY', weeksInY);
-                if(objPeriod[split].length !== weeksInY ){
-                    for (let x = 0; x < weeksInY; x++ ){
-                        if(!objPeriod[split][x]){
+                if(periodOrders[split].length !== weeksInY ){
+                    for (var x = 0; x < weeksInY; x++ ){
+                        if(!periodOrders[split][x]){
                             //only add day object if not already added.
-                            objPeriod[split][x] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0}
+                            periodOrders[split][x] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0, list:[]};;
+                        }
+                    }
+                }
+            }
+            if(period == 'weeksDays' && periodOrders[split]){
+
+                if(periodOrders[split].length !== 7){
+                    for (var x = 0; x < 7; x++ ){
+                        if(!periodOrders[split][x]){
+                            //only add day object if not already added.
+                            //console.log(weekDays[x])
+                            periodOrders[split][x] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0, list:[]};
+                        }
+
+                    }
+                }
+
+            }
+
+            if(period == 'months' && periodOrders[split]){
+                if(periodOrders[split].length !== 12){
+
+                    for(var x = 0; x < 12; x++ ) {
+                        if(!periodOrders[split][x]) {
+                            //only add day object if not already added.
+                            periodOrders[split][x] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0, list:[]};;
                         }
                     }
                 }
             }
 
-            if(period == 'months' && objPeriod[split]){
-                if(objPeriod[split].length !== 12){
-                    let twoDigitMonth = '';
-                    for (var x = 1; x < 12; x++ ){
-                        if ( x < 10 ){
-                            twoDigitMonth = "0" + x;
-                        } else {
-                            twoDigitMonth = x;
-                        }
-                        if(!objPeriod[split][twoDigitMonth]){
+            if(period == 'quarters' && periodOrders[split]){
+                if(periodOrders[split].length !== 5){
+                    for (var x = 0; x < 4; x++ ){
+                        if(!periodOrders[split][x]){
                             //only add day object if not already added.
-                            objPeriod[split][twoDigitMonth] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0}
+                            periodOrders[split][x] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0, list:[]};
                         }
                     }
                 }
             }
 
-            if(period == 'quarters' && objPeriod[split]){
-                if(objPeriod[split].length !== 5){
-                    for (let x = 0; x < 4; x++ ){
-                        if(!objPeriod[split][x]){
-                            //only add day object if not already added.
-                            objPeriod[split][x] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0}
-                        }
-                    }
-                }
-            }
-
-            if(period == 'years' && objPeriod[split]){
-                if(objPeriod[split]['total']){
+            if(period == 'years' && periodOrders[split]){
+                if(periodOrders[split]['total']){
 
                 } else {
-                    objPeriod[split] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0}
+                    periodOrders[split] = { total: 0, orders: 0, orderAvg: 0, maxOrder: 0, minOrder: 0, list:[]};
                 }
 
             }
 
             if(period !== 'years'){
-                objPeriod[split][subSplit]['total'] += obj[i].total;
-                objPeriod[split][subSplit]['orders']++;
-                objPeriod[split][subSplit]['minOrder'] = objPeriod[split][subSplit]['minOrder'] === 0 ? obj[i].total : (objPeriod[split][subSplit]['minOrder'] < obj[i].total ? objPeriod[split][subSplit]['minOrder'] : obj[i].total) || 0;
-                objPeriod[split][subSplit]['maxOrder'] = objPeriod[split][subSplit]['maxOrder'] > obj[i].total ? objPeriod[split][subSplit]['maxOrder'] : obj[i].total || 0;
-                objPeriod[split][subSplit]['orderAvg'] = objPeriod[split][subSplit]['total'] / objPeriod[split][subSplit]['orders'] || 0;
+                // console.log('rawOrders[i]', JSON.stringify(rawOrders[i]));
+                // console.log('subSplit', subSplit);
+                // console.log('split', split);
+                // console.log('periodOrders[split][subSplit]', JSON.stringify(periodOrders[split][subSplit]));
+
+                periodOrders[split][subSplit]['total'] += rawOrders[i].total;
+                periodOrders[split][subSplit]['orders']++;
+                periodOrders[split][subSplit]['minOrder'] = periodOrders[split][subSplit]['minOrder'] === 0 ? rawOrders[i].total : (periodOrders[split][subSplit]['minOrder'] < rawOrders[i].total ? periodOrders[split][subSplit]['minOrder'] : rawOrders[i].total) || 0;
+                periodOrders[split][subSplit]['maxOrder'] = periodOrders[split][subSplit]['maxOrder'] > rawOrders[i].total ? periodOrders[split][subSplit]['maxOrder'] : rawOrders[i].total || 0;
+                periodOrders[split][subSplit]['orderAvg'] = periodOrders[split][subSplit]['total'] / periodOrders[split][subSplit]['orders'] || 0;
+                if( showItems)  periodOrders[split][subSplit]['list'].push(rawOrders[i]);
+                // periodCounts
+                periodCounts[split]['total']++;
+
+                // periodSalesTotals
+                periodSalesTotals[split]['total'] += rawOrders[i].total;
+
+
             } else {
-                objPeriod[split]['total'] += obj[i].total;
-                objPeriod[split]['orders']++;
-                objPeriod[split]['orderAvg'] = objPeriod[split]['total'] / objPeriod[split]['orders'] || 0;
-                objPeriod[split]['minOrder'] = objPeriod[split]['minOrder'] === 0 ? obj[i].total : (objPeriod[split]['minOrder'] < obj[i].total ? objPeriod[split]['minOrder'] : obj[i].total) || 0;
-                objPeriod[split]['maxOrder'] = objPeriod[split]['maxOrder'] > obj[i].total ? objPeriod[split]['maxOrder'] : obj[i].total || 0;
+                periodOrders[split]['total'] += rawOrders[i].total;
+                periodOrders[split]['orders']++;
+                periodOrders[split]['orderAvg'] = periodOrders[split]['total'] / periodOrders[split]['orders'] || 0;
+                periodOrders[split]['minOrder'] = periodOrders[split]['minOrder'] === 0 ? rawOrders[i].total : (periodOrders[split]['minOrder'] < rawOrders[i].total ? periodOrders[split]['minOrder'] : rawOrders[i].total) || 0;
+                periodOrders[split]['maxOrder'] = periodOrders[split]['maxOrder'] > rawOrders[i].total ? periodOrders[split]['maxOrder'] : rawOrders[i].total || 0
+                if( showItems) periodOrders[split]['list'].push(rawOrders[i]);
+                // periodCounts
+                periodCounts[split]['total']++;
+
+                // periodSalesTotals
+                periodSalesTotals[split]['total'] += rawOrders[i].total;
             }
+
+        } // end for
+
+
+        // number of periods
+        periods.count = periods.splits.length;
+        // sort periods from more recent to less
+        periods.sortedSplits = periods.splits.sort(function(a, b) { return a < b; });
+        // most recent period
+        periods.to = periods.sortedSplits[0];
+        // less recent period
+        periods.from = periods.sortedSplits[periods.splits.length - 1];
+        // console.log('periods: ', periods);
+
+        // Calculate percentage change between periods. Only assign it to the most recent as it's the target comparissson.
+        if(Object.keys(periodCounts).length > 1){
+            // Only assign it to the most recent as it's the target comparisson.
+            // change percentage
+            periodCounts[periods.to].change = ((periodCounts[periods.to].total - periodCounts[periods.from].total ) / periodCounts[periods.from].total * 100).toFixed(2);
+            // change ammount
+            periodCounts[periods.to].change_value = periodCounts[periods.to].total - periodCounts[periods.from].total;
+            // don't need change here as I'm not comparing into this (old period)
+            delete periodCounts[periods.from].change;
+            delete periodCounts[periods.from].change_value;
         }
-        if(objPeriod){
-            resolve(objPeriod);
+
+        if(Object.keys(periodSalesTotals).length > 1){
+            // Only assign it to the most recent as it's the target comparisson.
+            periodSalesTotals[periods.to].change = ((periodSalesTotals[periods.to].total - periodSalesTotals[periods.from].total ) / periodSalesTotals[periods.from].total * 100).toFixed(2);
+            periodSalesTotals[periods.to].change_value = periodSalesTotals[periods.to].total - periodSalesTotals[periods.from].total;
+            delete periodSalesTotals[periods.from].change;
+            delete periodSalesTotals[periods.from].change_value;
+        }
+
+        let totalCount = periodCounts[periods.to].total + periodCounts[periods.from].total;
+        let totalSales = periodSalesTotals[periods.to].total + periodSalesTotals[periods.from].total;
+
+
+        if(periodOrders){
+            resolve({ totalCount: totalCount, totalSales: totalSales, periodOrders: periodOrders, periodCounts: periodCounts, periodSales: periodSalesTotals, periods:periods});
         } else {
             reject({error: { message: "error sorting"}});
         }
@@ -266,7 +397,8 @@ export default async (event: FunctionEvent<EventData>) => {
             firstLast = false;
         }
 
-
+        // Test
+        let startOfTheWeek = moment().startOf('week').add(1, 'days').format('DD').substring(0, 2);
 
         // t2 Defaults to today.
         let now = new Date(new Date() - new Date().getTimezoneOffset() * 60 * 1000);
@@ -281,7 +413,6 @@ export default async (event: FunctionEvent<EventData>) => {
         let d1 = new Date(t1), // 10:09 to
             d2 = new Date(t2); // 10:20
 
-        let diff = d2 - d1;
 
         // if (diff > 60e3) {
         //     console.log(Math.floor(diff / 60e3), 'minutes ago');
@@ -290,20 +421,20 @@ export default async (event: FunctionEvent<EventData>) => {
         //     console.log(Math.floor(diff / 1e3), 'seconds ago');
         // }
         // default response
+
         let response = {
             message: '',
             store_id: nodeId,
             periodOrders: {},
-            periodHours: 0,
-            periodCount: 0,
-            periodTotal: 0
+            periodSales: {},
+            periodCounts: {},
+            periods: {},
+            periodHours: Math.abs(d2 - d1) / 36e5,
+            totalCount: 0,
+            totalSales: 0,
         };
 
-        let periodHours = Math.abs(d2 - d1) / 36e5;
-
-        response.periodHours = periodHours;
-
-        if (debug) console.log('periodHours', periodHours);
+        if (debug) console.log('response.periodHours', response.periodHours);
 
         let period = {
             //t1: t1 + 'T00:00:00.000Z',
@@ -315,20 +446,37 @@ export default async (event: FunctionEvent<EventData>) => {
 
         if (debug) console.log('period', period);
 
-        let query = `query { aggg: allOrders(filter: { store: { id: "${nodeId}" }, dateCompleted_gte: "${period.t1}", dateCompleted_lte: "${period.t2}" }){id dateCompleted total }}`;
-        if (showItems) {
-            // Include order items
-            query = `query { aggg: allOrders(filter: { store: { id: "${nodeId}" } dateCompleted_gte: "${period.t1}" dateCompleted_lte: "${period.t2}" }){id dateCompleted total items { name price quantity }}}`;
+
+        let firstLastQ = `filter: { 
+                              store: { id: "${nodeId}" } 
+                              OR: [
+                                { dateCompleted_gte: "${period.t1}", dateCompleted_lte: "${period.t1_end}" }, 
+                                { dateCompleted_gte: "${period.t2_start}", dateCompleted_lte: "${period.t2}"}
+                              ]
+                          }`;
+
+        let stdQ = `filter: { store: { id: "${nodeId}" }, dateCompleted_gte: "${period.t1}", dateCompleted_lte: "${period.t2}" }`;
+        let filterQ;
+
+        let showItemsQ = '';
+
+        if ( firstLast ){
+            filterQ = firstLastQ;
+        } else {
+            filterQ = stdQ;
         }
 
-        if( showItems && firstLast ){
-            query = `query { aggg: allOrders(filter: { store: { id: "${nodeId}" } OR: [{ dateCompleted_gte: "${period.t1}", dateCompleted_lte: "${period.t1_end}" }, { dateCompleted_gte: "${period.t2_start}", dateCompleted_lte: "${period.t2}"}]}) { id dateCompleted total items { name price quantity }}}`;
-        } else if ( !showItems && firstLast ) {
-            query = `query { aggg: allOrders(filter: { store: { id: "${nodeId}" } OR: [{ dateCompleted_gte: "${period.t1}", dateCompleted_lte: "${period.t1_end}" }, { dateCompleted_gte: "${period.t2_start}", dateCompleted_lte: "${period.t2}"}]}) { id dateCompleted total }}`;
+        if ( showItems ){
+            showItemsQ = 'items { id name price quantity }';
+        } else {
+            showItemsQ = '';
         }
 
+        let query = `query { aggg: allOrders( ${filterQ} ){ id dateCompleted total status ${showItemsQ} }}`;
 
         if (debug) console.log('query:', query);
+        // let periodCount = 0;
+        // let periodTotal = 0;
         const client = fromEvent(event);
         // const onbehalfToken = await client.generateAuthToken(nodeId, 'User')
         const api = client.api('simple/v1', {token: event.context.auth.token});
@@ -341,79 +489,32 @@ export default async (event: FunctionEvent<EventData>) => {
 
                 let rawOrders = result["aggg"];
                 if (rawOrders) {
-                    //Got orders.
-                    let periodCount = 0;
-                    if (rawOrders) {
-                        periodCount = rawOrders.length;
-                    }
-                    let periodTotal = 0;
 
-                    // let periodAvgOrder = 0;
-                    // let periodMaxOrder = 0;
-                    // let periodMinOrder = 0;
-                    // let periodCountAbove = 0;
-                    // let periodCountBellow = 0;
-                    // let periodCountAboveIds = [];
-                    // let periodCountBellowIds = [];
 
-                    /**
-                    for (let i = 0; i < periodCount; i++) {
-                        let order = result.aggg[i];
-                        // Count
-                        periodTotal += order.total;
-
-                        // Max Order
-                        if (periodMaxOrder < order.total) {
-                            periodMaxOrder = order.total;
-                        }
-                        // Min Order
-                        if (i == 0) {
-                            periodMinOrder = order.total;
-                        }
-                        if (periodMinOrder > order.total) {
-                            periodMinOrder = order.total;
-                        }
-                    }
-
-                    if (periodCount > 0) {
-                        periodAvgOrder = +((periodTotal / periodCount).toFixed(2));
-                        for (let x = 0; x < periodCount; x++) {
-                            // Count Above
-                            let order = result.aggg[x];
-                            if (order.total > periodAvgOrder) {
-                                periodCountAbove++;
-                                periodCountAboveIds.push(order.id)
-                            } else {
-                                periodCountBellow++;
-                                periodCountBellowIds.push(order.id)
-                            }
-                        }
-                    }
-
-                     **/
-
-                    response.periodCount = periodCount;
-                    response.periodTotal = periodTotal;
-
-                    if (debug) console.log('partial response: ', JSON.stringify(response));
+                    if (debug) console.log('rawOrders: ', JSON.stringify(rawOrders));
                     if (debug) console.log('rawOrders.length', rawOrders.length);
                     // get user by id
                     if(rawOrders.length > 0) {
-                        let periodOrders = groupTotalsByPeriod(rawOrders, `${dateProp}`, `${splitBy}`);
+                        let totalsPeriods = groupTotalsByPeriod(rawOrders, `${dateProp}`, `${splitBy}`, showItems);
 
-                        periodOrders.then(periodOrders => {
-                            if (debug) console.log('periodOrders result:', JSON.stringify(periodOrders));
-                            response.periodOrders = periodOrders;
+                        totalsPeriods.then(totalsPeriods => {
+                            if (debug) console.log('totalsPeriods.periodOrders result:', JSON.stringify(totalsPeriods.periodOrders));
+                            response.totalCount = totalsPeriods.totalCount;
+                            response.totalSales = totalsPeriods.totalSales;
+                            response.periodOrders = totalsPeriods.periodOrders;
+                            response.periodCounts = totalsPeriods.periodCounts;
+                            response.periodSales = totalsPeriods.periodSales;
+                            response.periods = totalsPeriods.periods;
                             response.message = 'Found orders';
                             // Done Send response.
-                            if (debug) console.log('periodOrders Response: ', JSON.stringify(response));
+                            if (debug) console.log('totalsPeriods Response: ', JSON.stringify(response));
                             return {
                                 data: response,
                             }
                         });
                     } else {
                         response.message = 'No orders';
-                        if (debug) console.log('response no rawOrders:', JSON.stringify(response));
+                        if (debug) console.log('totalsPeriods response no rawOrders:', JSON.stringify(response));
                         // return {
                         //     data: response,
                         // }
@@ -428,12 +529,14 @@ export default async (event: FunctionEvent<EventData>) => {
                         data: {
                             storeId: nodeId,
                             periodOrders: {},
-                            periodHours: periodHours,
-                            periodCount: 0,
-                            periodTotal: 0
+                            periodHours: response.periodHours,
+                            periodCounts: {},
+                            periods: {},
+                            totalCount: {},
+                            totalSales: {},
+                            periodSales: {}
                         }
                     }
-
                 }
 
             });
@@ -463,4 +566,3 @@ function getISOWeeks(y) {
     //Wednesday jan 1. Otherwise it's 52
     return d.getDay() === 4 || isLeap && d.getDay() === 3 ? 53 : 52;
 }
-

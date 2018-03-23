@@ -1,9 +1,12 @@
 type totalsByPeriodPayload {
   store_id: String
   periodOrders: Json
+  periodCounts: Json
+  periodSales: Json
+  periods: Json
   periodHours: Int
-  periodCount: Int
-  periodTotal: Int
+  totalCount: Int
+  totalSales: Int
 }
 
 extend type Query {
